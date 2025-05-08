@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sommerhus Bus Departures</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 0 20px;
+            background-color: #1a1a1a;
+            color: #ffffff;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #9c27b0; /* Purple color */
+            color: white;
+            border: none;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        button:hover {
+            background-color: #7b1fa2; /* Darker purple on hover */
+        }
+        .departure-list {
+            background-color: #2d2d2d;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            padding: 20px;
+        }
+        .departure-item {
+            display: grid;
+            grid-template-columns: 200px 100px 1fr;
+            gap: 20px;
+            padding: 15px;
+            border-bottom: 1px solid #404040;
+            align-items: center;
+        }
+        .departure-item.cancelled {
+            opacity: 0.6;
+            background-color: #3d3d3d;
+        }
+        .departure-item:last-child {
+            border-bottom: none;
+        }
+        .time-container {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .time {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #ffffff;
+        }
+        .status-labels {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            align-items: center;
+            min-height: 20px;
+        }
+        .delayed-time {
+            color: #ff6b6b;
+            margin-left: 0;
+        }
+        .delayed-label {
+            color: #ff6b6b;
+            font-weight: bold;
+            font-size: 0.8em;
+            margin-left: 8px;
+            text-transform: uppercase;
+        }
+        .cancelled-label {
+            color: #ff6b6b;
+            font-weight: bold;
+            font-size: 0.8em;
+            margin-left: 8px;
+            text-transform: uppercase;
+        }
+        .line {
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            text-align: center;
+            font-weight: bold;
+        }
+        .line-108 {
+            background-color: #2E7D32; /* Darker green for 108 */
+        }
+        .line-109 {
+            background-color: #43A047; /* Lighter green for 109 */
+        }
+        .line-other {
+            background-color: #1976D2; /* Blue for other lines */
+        }
+        .cancelled .line {
+            opacity: 0.7;
+        }
+        .destination {
+            color: #b3b3b3;
+        }
+        .cancelled .destination {
+            opacity: 0.7;
+        }
+        .error {
+            color: #ff6b6b;
+            padding: 20px;
+            background-color: #2d2d2d;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .next-bus {
+            background-color: #2d2d2d;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 1.2em;
+            color: #ffffff;
+        }
+        .next-bus .time {
+            font-weight: bold;
+        }
+        .next-bus .time.too-late {
+            color: #ff6b6b;
+        }
+        .next-bus .time.hurry {
+            color: #ffd700;
+        }
+        .next-bus .time.ok {
+            color: #4CAF50;
+        }
+        .next-bus .line {
+            color: #ffffff;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>Sommerhus Bus Departures</h1>
+    <div id="nextBus" class="next-bus">Calculating next bus...</div>
+    <button onclick="fetchData()">Refresh Departures</button>
+    <div id="response"></div>
+
+    <script>
+        const API_KEY = 'e3ff3ff7-1a4d-404c-8dae-40920f821fa5';
+        
+        function calculateNextBus(departures) {
+            const now = new Date();
+            const currentTime = now.getHours() * 60 + now.getMinutes(); // Convert to minutes since midnight
+            
+            for (let i = 0; i < departures.length; i++) {
+                const dep = departures[i];
+                const cancelled = dep.getAttribute("cancelled") === "true";
+                
+                if (cancelled) continue; // Skip cancelled buses
+                
+                const time = dep.getAttribute("time");
+                const rtTime = dep.getAttribute("rtTime");
+                const [hours, minutes] = (rtTime || time).split(':').map(Number);
+                const departureTime = hours * 60 + minutes;
+                
+                if (departureTime > currentTime) {
+                    const minutesUntil = departureTime - currentTime;
+                    const line = dep.getAttribute("line");
+                    return {
+                        minutes: minutesUntil,
+                        line: line,
+                        time: rtTime || time
+                    };
+                }
+            }
+            return null;
+        }
+        
+        async function fetchData() {
+            const responseDiv = document.getElementById('response');
+            const nextBusDiv = document.getElementById('nextBus');
+            responseDiv.innerHTML = '<div class="departure-list">Loading...</div>';
+            nextBusDiv.textContent = 'Calculating next bus...';
+
+            try {
+                const params = new URLSearchParams({
+                    id: '5523',
+                    accessId: API_KEY
+                });
+
+                const url = `https://www.rejseplanen.dk/bin/rest.exe/departureBoard?id=${params.get('id')}&accessId=${params.get('accessId')}`;
+                
+                const response = await fetch(url, {
+                    headers: {
+                        'Accept': 'application/xml'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.text();
+                const parser = new DOMParser();
+                const xmlDoc = parser.parseFromString(data, "text/xml");
+                
+                // Get all departures
+                const departures = xmlDoc.getElementsByTagName("Departure");
+                
+                // Calculate next bus
+                const nextBus = calculateNextBus(departures);
+                if (nextBus) {
+                    let timeClass = 'ok';
+                    if (nextBus.minutes < 4) {
+                        timeClass = 'too-late';
+                    } else if (nextBus.minutes < 8) {
+                        timeClass = 'hurry';
+                    }
+                    nextBusDiv.innerHTML = `Next bus in <span class="time ${timeClass}">${nextBus.minutes}</span> minutes (Bus <span class="line">${nextBus.line}</span> at ${nextBus.time})`;
+                } else {
+                    nextBusDiv.textContent = 'No more buses today';
+                }
+                
+                let html = '<div class="departure-list">';
+                
+                // Display next 8 departures
+                const numDepartures = Math.min(8, departures.length);
+                for (let i = 0; i < numDepartures; i++) {
+                    const dep = departures[i];
+                    const time = dep.getAttribute("time");
+                    const rtTime = dep.getAttribute("rtTime");
+                    const line = dep.getAttribute("line");
+                    const direction = dep.getAttribute("direction");
+                    const cancelled = dep.getAttribute("cancelled") === "true";
+                    
+                    // Determine line color class
+                    let lineClass = 'line-other';
+                    if (line === '108') {
+                        lineClass = 'line-108';
+                    } else if (line === '109') {
+                        lineClass = 'line-109';
+                    }
+                    
+                    // Create time display with delay if present
+                    let timeDisplay = `
+                        <div class="time-container">
+                            <div class="time">${time}</div>
+                            <div class="status-labels">${rtTime ? `<span class="delayed-time">(${rtTime})</span><span class="delayed-label">DELAYED</span>` : ''}${cancelled ? `<span class="cancelled-label">CANCELLED</span>` : ''}</div>
+                        </div>`;
+                    
+                    html += `
+                        <div class="departure-item ${cancelled ? 'cancelled' : ''}">
+                            ${timeDisplay}
+                            <div class="line ${lineClass}">${line}</div>
+                            <div class="destination">${direction}</div>
+                        </div>
+                    `;
+                }
+                
+                html += '</div>';
+                responseDiv.innerHTML = html;
+            } catch (error) {
+                responseDiv.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+            }
+        }
+
+        // Fetch data when page loads
+        fetchData();
+    </script>
+</body>
+</html>
