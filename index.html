@@ -7,26 +7,55 @@
     <style>
         body {
             font-family: Arial, sans-serif;
-            max-width: 800px;
+            max-width: 1200px;
             margin: 20px auto;
             padding: 0 20px;
             background-color: #1a1a1a;
             color: #ffffff;
         }
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
         button {
             padding: 10px 20px;
             font-size: 16px;
             cursor: pointer;
-            background-color: #9c27b0; /* Purple color */
+            background-color: #9c27b0;
             color: white;
             border: none;
             border-radius: 4px;
             margin-bottom: 20px;
         }
         button:hover {
-            background-color: #7b1fa2; /* Darker purple on hover */
+            background-color: #7b1fa2;
         }
-        .departure-list {
+        .next-bus {
+            background-color: #2d2d2d;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 1.2em;
+            color: #ffffff;
+        }
+        .next-bus .time {
+            font-weight: bold;
+        }
+        .next-bus .time.too-late {
+            color: #ff6b6b;
+        }
+        .next-bus .time.hurry {
+            color: #ffd700;
+        }
+        .next-bus .time.ok {
+            color: #4CAF50;
+        }
+        .next-bus .line {
+            color: #ffffff;
+            font-weight: bold;
+        }
+        .departure-list, .trip-list {
             background-color: #2d2d2d;
             border-radius: 8px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
@@ -43,9 +72,6 @@
         .departure-item.cancelled {
             opacity: 0.6;
             background-color: #3d3d3d;
-        }
-        .departure-item:last-child {
-            border-bottom: none;
         }
         .time-container {
             display: flex;
@@ -90,13 +116,13 @@
             font-weight: bold;
         }
         .line-108 {
-            background-color: #2E7D32; /* Darker green for 108 */
+            background-color: #2E7D32;
         }
         .line-109 {
-            background-color: #43A047; /* Lighter green for 109 */
+            background-color: #43A047;
         }
         .line-other {
-            background-color: #1976D2; /* Blue for other lines */
+            background-color: #1976D2;
         }
         .cancelled .line {
             opacity: 0.7;
@@ -114,50 +140,46 @@
             border-radius: 8px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
-        .next-bus {
-            background-color: #2d2d2d;
+        .trip-item {
             padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 20px;
+            border-bottom: 1px solid #404040;
+        }
+        .trip-item:last-child {
+            border-bottom: none;
+        }
+        .trip-time {
             font-size: 1.2em;
-            color: #ffffff;
-        }
-        .next-bus .time {
             font-weight: bold;
-        }
-        .next-bus .time.too-late {
-            color: #ff6b6b;
-        }
-        .next-bus .time.hurry {
-            color: #ffd700;
-        }
-        .next-bus .time.ok {
-            color: #4CAF50;
-        }
-        .next-bus .line {
             color: #ffffff;
-            font-weight: bold;
+            margin-bottom: 8px;
+        }
+        .trip-details {
+            color: #b3b3b3;
+            margin-left: 20px;
         }
     </style>
 </head>
 <body>
     <h1>Sommerhus Bus Departures</h1>
     <div id="nextBus" class="next-bus">Calculating next bus...</div>
-    <button onclick="fetchData()">Refresh Departures</button>
-    <div id="response"></div>
+    <button onclick="fetchData()">Refresh Information</button>
+    <div class="container">
+        <div id="departures"></div>
+        <div id="trips"></div>
+    </div>
 
     <script>
         const API_KEY = 'e3ff3ff7-1a4d-404c-8dae-40920f821fa5';
         
         function calculateNextBus(departures) {
             const now = new Date();
-            const currentTime = now.getHours() * 60 + now.getMinutes(); // Convert to minutes since midnight
+            const currentTime = now.getHours() * 60 + now.getMinutes();
             
             for (let i = 0; i < departures.length; i++) {
                 const dep = departures[i];
                 const cancelled = dep.getAttribute("cancelled") === "true";
                 
-                if (cancelled) continue; // Skip cancelled buses
+                if (cancelled) continue;
                 
                 const time = dep.getAttribute("time");
                 const rtTime = dep.getAttribute("rtTime");
@@ -178,37 +200,37 @@
         }
         
         async function fetchData() {
-            const responseDiv = document.getElementById('response');
+            const departuresDiv = document.getElementById('departures');
+            const tripsDiv = document.getElementById('trips');
             const nextBusDiv = document.getElementById('nextBus');
-            responseDiv.innerHTML = '<div class="departure-list">Loading...</div>';
+            departuresDiv.innerHTML = '<div class="departure-list">Loading departures...</div>';
+            tripsDiv.innerHTML = '<div class="trip-list">Loading trips...</div>';
             nextBusDiv.textContent = 'Calculating next bus...';
 
             try {
-                const params = new URLSearchParams({
+                // Fetch departures
+                const departureParams = new URLSearchParams({
                     id: '5523',
                     accessId: API_KEY
                 });
-
-                const url = `https://www.rejseplanen.dk/bin/rest.exe/departureBoard?id=${params.get('id')}&accessId=${params.get('accessId')}`;
+                const departureUrl = `https://www.rejseplanen.dk/bin/rest.exe/departureBoard?id=${departureParams.get('id')}&accessId=${departureParams.get('accessId')}`;
                 
-                const response = await fetch(url, {
+                const departureResponse = await fetch(departureUrl, {
                     headers: {
                         'Accept': 'application/xml'
                     }
                 });
 
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+                if (!departureResponse.ok) {
+                    throw new Error(`HTTP error! status: ${departureResponse.status}`);
                 }
 
-                const data = await response.text();
-                const parser = new DOMParser();
-                const xmlDoc = parser.parseFromString(data, "text/xml");
+                const departureData = await departureResponse.text();
+                const departureParser = new DOMParser();
+                const departureXmlDoc = departureParser.parseFromString(departureData, "text/xml");
                 
-                // Get all departures
-                const departures = xmlDoc.getElementsByTagName("Departure");
-                
-                // Calculate next bus
+                // Process departures
+                const departures = departureXmlDoc.getElementsByTagName("Departure");
                 const nextBus = calculateNextBus(departures);
                 if (nextBus) {
                     let timeClass = 'ok';
@@ -222,9 +244,7 @@
                     nextBusDiv.textContent = 'No more buses today';
                 }
                 
-                let html = '<div class="departure-list">';
-                
-                // Display next 8 departures
+                let departureHtml = '<div class="departure-list">';
                 const numDepartures = Math.min(8, departures.length);
                 for (let i = 0; i < numDepartures; i++) {
                     const dep = departures[i];
@@ -234,7 +254,6 @@
                     const direction = dep.getAttribute("direction");
                     const cancelled = dep.getAttribute("cancelled") === "true";
                     
-                    // Determine line color class
                     let lineClass = 'line-other';
                     if (line === '108') {
                         lineClass = 'line-108';
@@ -242,14 +261,13 @@
                         lineClass = 'line-109';
                     }
                     
-                    // Create time display with delay if present
                     let timeDisplay = `
                         <div class="time-container">
                             <div class="time">${time}</div>
                             <div class="status-labels">${rtTime ? `<span class="delayed-time">(${rtTime})</span><span class="delayed-label">DELAYED</span>` : ''}${cancelled ? `<span class="cancelled-label">CANCELLED</span>` : ''}</div>
                         </div>`;
                     
-                    html += `
+                    departureHtml += `
                         <div class="departure-item ${cancelled ? 'cancelled' : ''}">
                             ${timeDisplay}
                             <div class="line ${lineClass}">${line}</div>
@@ -257,11 +275,80 @@
                         </div>
                     `;
                 }
+                departureHtml += '</div>';
+                departuresDiv.innerHTML = departureHtml;
+
+                // Fetch trips
+                const tripParams = new URLSearchParams({
+                    originId: '5523',
+                    destId: '8600626',
+                    accessId: API_KEY
+                });
+                const tripUrl = `https://www.rejseplanen.dk/bin/rest.exe/trip?originId=${tripParams.get('originId')}&destId=${tripParams.get('destId')}&accessId=${tripParams.get('accessId')}`;
                 
-                html += '</div>';
-                responseDiv.innerHTML = html;
+                const tripResponse = await fetch(tripUrl, {
+                    headers: {
+                        'Accept': 'application/xml'
+                    }
+                });
+
+                if (!tripResponse.ok) {
+                    throw new Error(`HTTP error! status: ${tripResponse.status}`);
+                }
+
+                const tripData = await tripResponse.text();
+                const tripParser = new DOMParser();
+                const tripXmlDoc = tripParser.parseFromString(tripData, "text/xml");
+                
+                // Process trips
+                const trips = tripXmlDoc.getElementsByTagName("Trip");
+                let tripHtml = '<div class="trip-list">';
+                
+                for (let i = 0; i < trips.length; i++) {
+                    const trip = trips[i];
+                    const legs = trip.getElementsByTagName("Leg");
+                    let tripDetails = '';
+                    
+                    for (let j = 0; j < legs.length; j++) {
+                        const leg = legs[j];
+                        const name = leg.getAttribute("name") || '';
+                        const type = leg.getAttribute("type") || '';
+                        const origin = leg.getAttribute("origin") || '';
+                        const destination = leg.getAttribute("destination") || '';
+                        
+                        // Get the Origin and Destination elements
+                        const originElem = leg.getElementsByTagName("Origin")[0];
+                        const destElem = leg.getElementsByTagName("Destination")[0];
+                        const departureTime = originElem ? originElem.getAttribute("time") || '' : '';
+                        const arrivalTime = destElem ? destElem.getAttribute("time") || '' : '';
+                        
+                        // Highlight first departure and final arrival
+                        const isFirstLeg = j === 0;
+                        const isLastLeg = j === legs.length - 1;
+                        
+                        tripDetails += `
+                            <div class="trip-details">
+                                ${name}: ${origin} ${destination}<br>
+                                ${isFirstLeg ? '<strong>Departure: ' + departureTime + '</strong>' : 'Departure: ' + departureTime} - 
+                                ${isLastLeg ? '<strong>Arrival: ' + arrivalTime + '</strong>' : 'Arrival: ' + arrivalTime}
+                            </div>
+                        `;
+                    }
+                    
+                    tripHtml += `
+                        <div class="trip-item">
+                            <div class="trip-time">Trip ${i + 1}</div>
+                            ${tripDetails}
+                        </div>
+                    `;
+                }
+                
+                tripHtml += '</div>';
+                tripsDiv.innerHTML = tripHtml;
+
             } catch (error) {
-                responseDiv.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+                departuresDiv.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+                tripsDiv.innerHTML = `<div class="error">Error: ${error.message}</div>`;
             }
         }
 
