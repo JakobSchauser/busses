@@ -183,6 +183,9 @@
     <script>
         const API_KEY = 'e3ff3ff7-1a4d-404c-8dae-40920f821fa5';
         
+        let nextBusInfo = null; // Variable to store next bus information
+        let nextBusDiv; // Declare nextBusDiv here
+
         function calculateNextBus(departures) {
             const now = new Date();
             const currentTime = now.getHours() * 60 + now.getMinutes();
@@ -204,17 +207,43 @@
                     return {
                         minutes: minutesUntil,
                         line: line,
-                        time: rtTime || time
+                        time: rtTime || time,
+                        departureTime: departureTime
                     };
                 }
             }
             return null;
         }
         
+        function updateNextBusDisplay() {
+            if (nextBusInfo) {
+                const now = new Date();
+                const currentTime = now.getHours() * 60 + now.getMinutes();
+                const departureTime = nextBusInfo.departureTime; // Store departure time in minutes
+
+                // Calculate minutes until the next bus and round down
+                const minutesUntil = Math.floor(departureTime - currentTime);
+                
+                // Determine the appropriate class based on the minutes left
+                let timeClass = 'ok';
+                if (minutesUntil < 0) {
+                    nextBusDiv.textContent = 'No more buses today';
+                    return;
+                } else if (minutesUntil < 4) {
+                    timeClass = 'too-late';
+                } else if (minutesUntil < 8) {
+                    timeClass = 'hurry';
+                }
+
+                // Update the display with the correct class
+                nextBusDiv.innerHTML = `Next bus in <span class="time ${timeClass}">${minutesUntil}</span> minutes (Bus <span class="line">${nextBusInfo.line}</span> at ${nextBusInfo.time})`;
+            }
+        }
+        
         async function fetchData() {
             const departuresDiv = document.getElementById('departures');
             const tripsDiv = document.getElementById('trips');
-            const nextBusDiv = document.getElementById('nextBus');
+            nextBusDiv = document.getElementById('nextBus'); // Initialize nextBusDiv here
             departuresDiv.innerHTML = '<div class="departure-list">Loading departures...</div>';
             tripsDiv.innerHTML = '<div class="trip-list">Loading trips...</div>';
             nextBusDiv.textContent = 'Calculating next bus...';
@@ -245,16 +274,26 @@
                 const departures = departureXmlDoc.getElementsByTagName("Departure");
                 const nextBus = calculateNextBus(departures);
                 if (nextBus) {
-                    let timeClass = 'ok';
-                    if (nextBus.minutes < 4) {
-                        timeClass = 'too-late';
-                    } else if (nextBus.minutes < 8) {
-                        timeClass = 'hurry';
-                    }
-                    nextBusDiv.innerHTML = `Next bus in <span class="time ${timeClass}">${nextBus.minutes}</span> minutes (Bus <span class="line">${nextBus.line}</span> at ${nextBus.time})`;
+                    nextBusInfo = {
+                        line: nextBus.line,
+                        time: nextBus.time,
+                        departureTime: nextBus.departureTime // Store the departure time in minutes
+                    };
+                    updateNextBusDisplay(); // Initial display update
                 } else {
                     nextBusDiv.textContent = 'No more buses today';
                 }
+                
+                // Calculate time until the next full minute
+                const now = new Date();
+                const secondsUntilNextMinute = 61 - now.getSeconds();
+                const millisecondsUntilNextMinute = secondsUntilNextMinute * 1000;
+
+                // Set a timeout to update at the start of the next minute
+                setTimeout(() => {
+                    updateNextBusDisplay(); // Update immediately at the start of the next minute
+                    setInterval(updateNextBusDisplay, 60000); // Then update every minute
+                }, millisecondsUntilNextMinute);
                 
                 let departureHtml = '<div class="departure-list">';
                 const numDepartures = Math.min(8, departures.length);
